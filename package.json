@@ -6,7 +6,7 @@
   "author": "pany <939630029@qq.com> (https://github.com/pany-ang)",
   "repository": "https://github.com/un-pany/v3-admin-vite",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite ",
     "build:staging": "vue-tsc && vite build --mode staging",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",

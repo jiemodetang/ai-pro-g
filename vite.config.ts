@@ -28,13 +28,13 @@ export default defineConfig(({ mode }) => {
     // 开发环境服务器配置
     server: {
       // 是否监听所有地址
-      host: true,
+      host: '0.0.0.0',
       // 端口号
       port: 3333,
       // 端口被占用时，是否直接退出
-      strictPort: false,
+      // strictPort: false,
       // 是否自动打开浏览器
-      open: true,
+      open:  true,
       // 反向代理
       proxy: {
         "/api/v1": {
