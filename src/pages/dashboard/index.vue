@@ -68,8 +68,8 @@
         <!-- 二选一的单选框 -->
         <el-form-item label="参数设置">
           <el-radio-group v-model="paramType">
-            <el-radio label="default">AI 默认参数</el-radio>
-            <el-radio label="custom">自定义参数</el-radio>
+            <el-radio value="default">AI 默认参数</el-radio>
+            <el-radio value="custom">自定义参数</el-radio>
           </el-radio-group>
         </el-form-item>
         <!-- 自定义参数文本框 -->
@@ -92,30 +92,11 @@ import * as PDF from "pdfjs-dist/legacy/build/pdf.mjs";
 import aiAxios, { apiConfigs, ifpugFunctionPointEvaluationPrompt,customizeEvaluationPrompt } from './pdfEditTable/config';
 import PdfEditTable from './pdfEditTable/index.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { data2 } from './pdfEditTable/mock';
+import { data2,data3 } from './pdfEditTable/mock';
 // import { TextLayerBuilder } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs';
 import { debounce } from 'lodash';
 const pdfEditTableRef = ref(null);
-const data3 = [
-  {
-    id: 1,
-    "subsystem": "智慧养殖大数据管理平台",
-    "level1": "基础信息管理",
-    "countItem": "养殖场信息管理",
-    "description": "对养殖场内鸡场进行动态维护，包括名称、地址、联系人、联系电话等信息的增删改查。",
-    "ufp": 5,
-    "pdfTransformText": "地大数据运行中心项目"
-  },
-  {
-    id: 2,
-    "subsystem": "智慧养殖大数据管理平台",
-    "level1": "基础信息管理",
-    "countItem": "供应商信息管理",
-    "description": "对鸡场所对应的供应商进行动态维护，包括商家信息、对应供应类型、联系人、联系电话、供应商所在地址等信息的增删改查。",
-    "ufp": 5,
-    "pdfTransformText": "项目建设地点"
-  },
-]
+ 
 PDF.GlobalWorkerOptions.workerSrc = 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs';
 
 const state = reactive({
@@ -278,7 +259,7 @@ async function renderPage(num) {
 
   const highlightRanges = [];
   for (const item of state.tableData) {
-    const searchText = item.pdfTransformText;
+    const searchText = item.description;
     let startIndex = 0;
     while ((startIndex = fullText.indexOf(searchText, startIndex)) !== -1) {
       const endIndex = startIndex + searchText.length;
@@ -311,12 +292,11 @@ async function renderPage(num) {
         if (currentIndex >= range.start && currentIndex < range.end) {
           // 获取完整的高亮文本
           highlightText = state.tableData.find(
-            d => d.pdfTransformText === fullText.substring(range.start, range.end)
-          )?.pdfTransformText || '';
+            d => d.description === fullText.substring(range.start, range.end)
+          )?.description || '';
           break;
         }
       }
-      console.log(highlightText,1);
       
       if (highlightText) {
         const charWidth = ctx.measureText(char).width;
@@ -377,7 +357,7 @@ async function renderPage(num) {
     if (found) {
     // 查找所有匹配的表格行
     const matchedRows = state.tableData.filter(
-      item => item.pdfTransformText === found.text
+      item => item.description === found.text
     );
     if (matchedRows.length) {
       selectedRowIds.value = matchedRows.map(r => String(r.id));
@@ -404,7 +384,7 @@ async function renderPage(num) {
 
 // 新增对话框相关响应式数据和方法
 const dialogVisible = ref(false);
-const selectedModel = ref('GLM-4-plus');
+const selectedModel = ref('doubao-1-5-pro-32k-250115');
 const paramType = ref('default');
 const customParams = ref('');
 customParams.value = localStorage.getItem('aiCustomParams') || ''; 
@@ -432,6 +412,9 @@ const submitPrompt = async () => {
     if(paramType.value == 'default'){
       const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + ifpugFunctionPointEvaluationPrompt);
       state.tableData = text;
+      // state.tableData = data3;
+      // console.log(state.pdfAllText);
+      
     }else{
       // console.log(customParams.value + customizeEvaluationPrompt);
       
@@ -488,8 +471,7 @@ const submitPrompt = async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-x: auto;
-  /* 支持横向滚动 */
+  overflow: hidden; /* 修改：从overflow-x: auto改为hidden，防止右侧容器出现滚动条 */
   min-width: 0;
   /* 确保内容溢出时可以滚动 */
 }
@@ -507,6 +489,7 @@ const submitPrompt = async () => {
   flex: 1;
   border: 1px solid #ccc;
   padding: 10px;
+  overflow: hidden; /* 修改：从auto改为hidden，防止右下方区域出现滚动条 */
 }
 
 /* 新增按钮容器样式 */
