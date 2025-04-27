@@ -46,15 +46,15 @@ const ifpugFunctionPointEvaluationPrompt = `您现在是一名资深软件造价
 }]
 6、请只输出JSON,不输出其他附加内容,且格式的key必须如上所述`
 const customizeEvaluationPrompt = `以下三点，必须遵守，
- 1.功能分类为子系统,一级模块,功能点计数项名称,功能项描述,功能类型,转化前对应文本,注意,其中功能点计数项名称要分开描述。
+ 1.功能分类为子系统,一级模块,二级模块,转化的对应原文本内容,功能点计数项名称,功能类型。请注意,其中二级模块一定要分开描述。
  2.将最后的结果整理成JSON格式输出，请必须只输出JSON,不输出其他附加内容,且格式必须如下所述[{
-    id: '',//id
-    subsystem: "",//子系统 
+     id: '',//id
+    subsystem: "",//子系统
     level1: "",//一级模块
-    countItem: '',//功能点计数项名称
-    description: '',//功能项描述
+    level2: "",//二级模块
+    description: '',//转化的对应原文本内容
+    countItem：'',//功能点计数项名称
     category:'' //识别功能描述文本中的功能类型
-    pdfTransformText: ''//转化前对应文本
 }]
     3.请只输出JSON,不输出其他附加内容`
 
@@ -66,14 +66,7 @@ const apiConfigs = {
     value: 'doubao-1-5-pro-32k-250115',
     authorization: 'a5634a1c-cbd6-4508-8566-00102c88f6ff'
   },
-  // deepSeekR1: {
-  //   url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  //   model: "ep-20250417081903-q852h",
-  //   name: 'DeepSeek-R1',
-  //   value: 'DeepSeek-R1',
-  //   maxTokens:16000,
-  //   authorization: 'a5634a1c-cbd6-4508-8566-00102c88f6ff'
-  // },
+
   'deepseek-v3-250324': {
     url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
     model: "deepseek-v3-250324",
@@ -91,14 +84,7 @@ const apiConfigs = {
     maxTokens: 128000,
     authorization: 'da75a43d60a94c7eab5c5d652c0dcf1a.ZVMoJWynUyAD9cC8'
   },
-  // "glm-4-air-250414": {
-  //   url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-  //   model: "glm-4-air-250414",
-  //   name: 'glm-4-air-250414',
-  //   value: 'glm-4-air-250414',
-  //   maxTokens: 16000,
-  //   authorization: 'da75a43d60a94c7eab5c5d652c0dcf1a.ZVMoJWynUyAD9cC8'
-  // },
+
   "GLM-4-plus": {
     url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     model: "GLM-4-plus",
