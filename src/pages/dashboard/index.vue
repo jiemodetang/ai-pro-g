@@ -74,7 +74,28 @@
         </el-form-item>
         <!-- 自定义参数文本框 -->
         <el-form-item v-if="paramType === 'custom'" label="自定义参数">
-          <el-input type="textarea" v-model="customParams" placeholder="请输入自定义参数" :rows="35"></el-input>
+          <el-input type="textarea" v-model="customParams" placeholder="请输入自定义参数" :rows="30"></el-input>
+        </el-form-item>
+        <!-- 新增高级配置 -->
+        <el-form-item>
+          <el-collapse>
+            <el-collapse-item title="高级配置">
+              <el-form-item label="Token颗粒化">
+                <div class="demo-progress">
+                  <el-progress :percentage="tokenPercentage" :color="tokenColors" :format="format" />
+                  <div style="margin-top: 10px;">
+                    <el-button-group>
+                      <el-button :icon="Minus" @click="decreaseToken" />
+                      <el-button :icon="Plus" @click="increaseToken" />
+                    </el-button-group>
+                  </div>
+                  <div class="token-description" style="margin-top: 10px; color: #606266; font-size: 14px;">
+                    Token数量影响输出结果的精细程度：数量越小结果相对精细化，时间会慢；数量越大可以处理更长的文本处理时间快，但可能会降低精细度。
+                  </div>
+                </div>
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -95,6 +116,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { data2,data3 } from './pdfEditTable/mock';
 // import { TextLayerBuilder } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs';
 import { debounce } from 'lodash';
+import { Plus, Minus } from '@element-plus/icons-vue'
 const pdfEditTableRef = ref(null);
  
 PDF.GlobalWorkerOptions.workerSrc = 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs';
@@ -111,13 +133,44 @@ const state = reactive({
   selectedRow: null, // 用于存储选中的行数据
   selectedCell: null, // 用于存储选中的单元格数据 
 });
+// 定义token配置选项和对应的颜色
+const tokenConfig = {
+  2048: { color: '#f56c6c', percentage: 25 },
+  4096: { color: '#e6a23c', percentage: 50 },
+  8192: { color: '#5cb87a', percentage: 75 },
+  16384: { color: '#6f7ad3', percentage: 100 }
+};
 
+const tokenOptions = Object.keys(tokenConfig).map(Number);
+const tokenColors = Object.values(tokenConfig).map(({ color, percentage }) => ({ color, percentage }));
+
+// 修改token配置相关状态
+const tokenPercentage = ref(100);
+let currentTokenIndex = 3; // 默认16384
+const loading = ref(false);
 let pdfDoc = null;
 const redCharPositions = ref([]);
-const loading = ref(false);
-
 const selectedRowIds = ref([]);
+// 增加token配置
+const increaseToken = () => {
+  if (currentTokenIndex < tokenOptions.length - 1) {
+    currentTokenIndex++;
+    tokenPercentage.value = tokenConfig[tokenOptions[currentTokenIndex]].percentage;
+  }
+};
 
+// 减少token配置
+const decreaseToken = () => {
+  if (currentTokenIndex > 0) {
+    currentTokenIndex--;
+    tokenPercentage.value = tokenConfig[tokenOptions[currentTokenIndex]].percentage;
+  }
+};
+
+// 获取当前选择的token值
+const getCurrentToken = () => tokenOptions[currentTokenIndex];
+
+const format = (percentage) => `${getCurrentToken()} Token`;
 // Handle file upload change event
 const handleFileChange = (file) => {
   let actualFile;
@@ -408,9 +461,12 @@ const submitPrompt = async () => {
 
   // 开始加载，设置 loading 为 true
   loading.value = true;
+  const t = getCurrentToken()
   try {
     if(paramType.value == 'default'){
-      const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + ifpugFunctionPointEvaluationPrompt);
+      // console.log(state.pdfAllText);
+      
+      const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + ifpugFunctionPointEvaluationPrompt,t);
       state.tableData = text;
       // state.tableData = data3;
       // console.log(state.pdfAllText);
@@ -573,4 +629,38 @@ const submitPrompt = async () => {
 .table-container {
   overflow-y: scroll;
 } 
+
+.demo-progress .el-progress--line {
+  width: 350px;
+ margin-top: 15px;
+}
+
+.demo-progress {
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.el-collapse-item {
+  margin-bottom: 10px;
+}
+
+.el-collapse {
+  border: none;
+}
+
+/* 修改折叠面板头部边框样式 */
+:deep(.el-collapse-item__header) {
+  border-bottom: none;
+}
+
+/* 如果上面的方式不起作用，可以尝试使用更高的优先级 */
+:deep(.el-collapse-item) .el-collapse-item__header {
+  border-bottom: none !important;
+}
+
+/* 同时确保内容区域的边框样式也被正确设置 */
+:deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
 </style>
