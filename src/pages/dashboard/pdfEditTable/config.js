@@ -42,7 +42,7 @@ const ifpugFunctionPointEvaluationPrompt = `您现在是一名资深软件造价
     countItem:'',//功能点计数项名称
     category:'' //识别功能描述文本中的功能类型
 
-}]
+}]。请注意,description必须是原文本核心内容,包括原标点符号，内容不需要修改。
 6、请只输出完整的JSON,不输出其他附加内容,且格式的key必须如上所述，绝对要完整`
 const customizeEvaluationPrompt = `以下三点，必须遵守，
  1.功能分类为子系统,一级模块,二级模块,转化的对应原文本内容,功能点计数项名称,功能类型。请注意,其中二级模块一定要分开描述。
@@ -144,7 +144,7 @@ async function aiAxios(configName, initialContent,token) {
   let messages = [{ role: "user", content: initialContent || "" }];
   let finish_reason = "length";
   let safetyCounter = 0;
-  const maxRetries = 5;
+  const maxRetries = 10;
 
   console.log("开始 AI 请求流程...");
 

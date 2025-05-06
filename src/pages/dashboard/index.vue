@@ -321,7 +321,6 @@ async function renderPage(num) {
     }
   }
 
-  // 渲染文本
 
   // 新增高亮区域数据
   const highlightAreas = ref([]);
@@ -414,8 +413,6 @@ async function renderPage(num) {
     );
     if (matchedRows.length) {
       selectedRowIds.value = matchedRows.map(r => String(r.id));
-      // 滚动到第一个匹配行
-      
     }
   }
   };

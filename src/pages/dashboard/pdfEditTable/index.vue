@@ -193,7 +193,7 @@ import { ref, computed } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import * as XLSX from 'xlsx';
-import { data1 } from './mock';
+import { data3 } from './mock';
 import { nextTick } from 'vue';
 
 // 定义 props 来接收父组件传递的数据
@@ -224,8 +224,6 @@ const matchedRows = ref([]);
 const currentMatchIndex = ref(-1);
 // 当前匹配的字段
 const currentMatchField = ref('');
-// 用于合并单元格的数组
-const spanArr = ref([]);
 // 使用计算属性定义 tableData
 const tableData = computed(() => {
   return props.pdfDealTableData.map(item => ({
@@ -243,45 +241,31 @@ const categoryOptions = [
   { label: 'ILF', value: 'ILF' },
   { label: 'EIF', value: 'EIF' }
 ];
-// 计算合并单元格的数组
-const calculateSpanArr = () => {
-  let pos = 0;
-  spanArr.value = [];
-  tableData.value.forEach((row, index) => {
-    if (index === 0) {
-      spanArr.value.push(1);
-      pos = 0;
-    } else {
-      // 判断当前行的一级模块是否和上一行相同
-      if (row.level1 === tableData.value[index - 1].level1) {
-        spanArr.value[pos] += 1;
-        spanArr.value.push(0);
-      } else {
-        spanArr.value.push(1);
-        pos = index;
-      }
-    }
-  });
-};
-
-// 监听 tableData 变化，重新计算合并数组
-watch(tableData, () => {
-  calculateSpanArr();
-}, { deep: true });
 
 // 合并单元格方法
 const mergeCells = ({ row, column, rowIndex, columnIndex }) => {
-  if (columnIndex === 2) { // 一级模块所在列的索引为 2
-    const rowSpan = spanArr.value[rowIndex];
-    return {
-      rowspan: rowSpan,
-      colspan: 1
-    };
+  if (column.property === 'subsystem' || column.property === 'level1') {
+    const previousRow = tableData.value[rowIndex - 1];
+    if (previousRow && previousRow[column.property] === row[column.property]) {
+      return {
+        rowspan: 0,
+        colspan: 0,
+      };
+    } else {
+      let rowspan = 1;
+      for (let i = rowIndex + 1; i < tableData.value.length; i++) {
+        if (tableData.value[i][column.property] === row[column.property]) {
+          rowspan++;
+        } else {
+          break;
+        }
+      }
+      return {
+        rowspan,
+        colspan: 1,
+      };
+    }
   }
-  return {
-    rowspan: 1,
-    colspan: 1
-  };
 };
 
 
@@ -401,10 +385,8 @@ watch(() => props.highlightRowIds, (newVal) => {
     });
   }
 }, { immediate: true });
-// 表格行类名
 // 修改高亮判断逻辑
 const handleHighlightRow = ({ row }) => {
-
   return props.highlightRowIds.includes(String(row.id)) ? 'highlight-row' : '';
 };
 
