@@ -1,6 +1,7 @@
 <template>
   <div class="main-container-top">
     <!-- 左边容器 -->
+    <!-- 左边容器 -->
     <div :class="state.pdfPages ? 'left-container' : 'left-container-drag'">
       <!-- 原有的上传按钮和 PDF 容器 -->
       <div v-if="!state.pdfPages">
@@ -11,7 +12,9 @@
           <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
         </el-upload>
       </div>
-      <div v-else id="pdf-container">
+      <div v-else id="pdf-container" class="pdf-container-wrapper" v-loading="pdfRendering"
+        element-loading-text="PDF渲染中..." element-loading-spinner="el-icon-loading"
+        element-loading-background="rgba(255, 255, 255, 0.9)">
         <div v-for="page in state.pdfPages" :key="page" class="pdf-page-container">
           <canvas :id="`pdfCanvas${page}`" style="border-bottom:1px solid #d4d2d2" />
           <div :id="`textLayer${page}`" class="text-layer"></div>
@@ -42,15 +45,13 @@
           <el-button type="primary" @click="dialogVisible = true">配置 AI 模型</el-button>
           <!-- 修改按钮，添加 :loading 属性 -->
           <el-button type="primary" @click="submitPrompt" :loading="loading">开始生成</el-button>
+          <el-progress v-if="loading" :percentage="progress" style="width: 100%; margin-top: 10px;" />
         </div>
       </div>
       <!-- 右边下半部分 -->
       <div class="right-bottom">
         <!-- 这里可以添加右边下半部分的自定义内容 -->
-        <PdfEditTable 
-          ref="pdfEditTableRef"
-          :pdfDealTableData="state.tableData" 
-          :submitLoading="loading" 
+        <PdfEditTable ref="pdfEditTableRef" :pdfDealTableData="state.tableData" :submitLoading="loading"
           :highlight-row-ids="selectedRowIds">
         </PdfEditTable>
       </div>
@@ -75,6 +76,10 @@
         <!-- 自定义参数文本框 -->
         <el-form-item v-if="paramType === 'custom'" label="自定义参数">
           <el-input type="textarea" v-model="customParams" placeholder="请输入自定义参数" :rows="30"></el-input>
+          <!-- 新增恢复默认参数按钮 -->
+          <div style="margin-top: 10px; text-align: right;">
+            <el-button type="primary" @click="resetCustomParams">恢复默认参数</el-button>
+          </div>
         </el-form-item>
         <!-- 新增高级配置 -->
         <el-form-item>
@@ -110,15 +115,15 @@
 <script setup>
 import { onMounted, reactive, nextTick, ref } from "vue";
 import * as PDF from "pdfjs-dist/legacy/build/pdf.mjs";
-import aiAxios, { apiConfigs, ifpugFunctionPointEvaluationPrompt,customizeEvaluationPrompt } from './pdfEditTable/config';
+import aiAxios, { apiConfigs, ifpugFunctionPointEvaluationPrompt } from './pdfEditTable/config';
 import PdfEditTable from './pdfEditTable/index.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { data2,data3 } from './pdfEditTable/mock';
+import { data2, data3 } from './pdfEditTable/mock';
 // import { TextLayerBuilder } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs';
 import { debounce } from 'lodash';
 import { Plus, Minus } from '@element-plus/icons-vue'
 const pdfEditTableRef = ref(null);
- 
+
 PDF.GlobalWorkerOptions.workerSrc = 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs';
 
 const state = reactive({
@@ -140,6 +145,8 @@ const tokenConfig = {
   8192: { color: '#5cb87a', percentage: 75 },
   16384: { color: '#6f7ad3', percentage: 100 }
 };
+// 添加PDF渲染状态变量
+const pdfRendering = ref(false);
 
 const tokenOptions = Object.keys(tokenConfig).map(Number);
 const tokenColors = Object.values(tokenConfig).map(({ color, percentage }) => ({ color, percentage }));
@@ -148,9 +155,11 @@ const tokenColors = Object.values(tokenConfig).map(({ color, percentage }) => ({
 const tokenPercentage = ref(100);
 let currentTokenIndex = 3; // 默认16384
 const loading = ref(false);
+const progress = ref(0); // 新增进度条变量
 let pdfDoc = null;
 const redCharPositions = ref([]);
 const selectedRowIds = ref([]);
+
 // 增加token配置
 const increaseToken = () => {
   if (currentTokenIndex < tokenOptions.length - 1) {
@@ -192,7 +201,7 @@ const handleFileChange = (file) => {
   };
   fileReader.readAsDataURL(actualFile);
 };
- 
+
 // 处理超出限制事件
 const handleExceed = (files, fileList) => {
   console.log('每次只能上传一个文件，新文件将覆盖现有文件。');
@@ -219,8 +228,8 @@ const handleRemove = () => {
 };
 
 onMounted(() => {
-   // 调试代码
-   window.vm = this
+  // 调试代码
+  window.vm = this
   console.log('表格实例：', pdfEditTableRef.value?.tableRef)
 });
 
@@ -234,12 +243,17 @@ function loadFile(url) {
     const { numPages } = p;
     state.pdfPages = numPages;
     nextTick(() => {
+      // 开始渲染前设置加载状态为true
+      pdfRendering.value = true;
       renderPage(1);
     });
   }).catch((error) => {
     console.error('加载 PDF 文件出错:', error);
+    // 出错时也要关闭加载状态
+    pdfRendering.value = false;
   });
 }
+
 async function renderPage(num) {
   const page = await pdfDoc.getPage(num);
   const canvas = document.getElementById(`pdfCanvas${num}`);
@@ -349,7 +363,7 @@ async function renderPage(num) {
           break;
         }
       }
-      
+
       if (highlightText) {
         const charWidth = ctx.measureText(char).width;
         highlightAreas.value.push({
@@ -407,14 +421,14 @@ async function renderPage(num) {
     );
 
     if (found) {
-    // 查找所有匹配的表格行
-    const matchedRows = state.tableData.filter(
-      item => item.description === found.text
-    );
-    if (matchedRows.length) {
-      selectedRowIds.value = matchedRows.map(r => String(r.id));
+      // 查找所有匹配的表格行
+      const matchedRows = state.tableData.filter(
+        item => item.description === found.text
+      );
+      if (matchedRows.length) {
+        selectedRowIds.value = matchedRows.map(r => String(r.id));
+      }
     }
-  }
   };
 
   // 在canvas元素上绑定事件（修改这部分）
@@ -424,9 +438,13 @@ async function renderPage(num) {
   }
 
 
+
   if (state.pdfPages > num) {
     // 确保下一页的图片也能正确渲染
     await renderPage(num + 1);
+  } else {
+    // 所有页面渲染完成后，关闭加载状态
+    pdfRendering.value = false;
   }
 }
 
@@ -437,7 +455,7 @@ const dialogVisible = ref(false);
 const selectedModel = ref('doubao-1-5-pro-32k-250115');
 const paramType = ref('default');
 const customParams = ref('');
-customParams.value = localStorage.getItem('aiCustomParams') || ''; 
+customParams.value = localStorage.getItem('aiCustomParams') || ifpugFunctionPointEvaluationPrompt;
 
 const saveConfig = () => {
   console.log('保存配置:', {
@@ -449,6 +467,12 @@ const saveConfig = () => {
   dialogVisible.value = false;
 };
 
+// 新增恢复默认参数方法
+const resetCustomParams = () => {
+  customParams.value = ifpugFunctionPointEvaluationPrompt;
+  ElMessage.success('已恢复默认参数');
+};
+
 const submitPrompt = async () => {
   // 新增PDF文件校验
   if (!state.pdfSrc) {
@@ -456,33 +480,33 @@ const submitPrompt = async () => {
     return;
   }
 
-  // 开始加载，设置 loading 为 true
   loading.value = true;
+  progress.value = 0; // 开始时重置进度
   const t = getCurrentToken()
   try {
-    if(paramType.value == 'default'){
-      // console.log(state.pdfAllText);
-      
-      const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + ifpugFunctionPointEvaluationPrompt,t);
+    // 模拟进度条递增（如有后端进度接口可替换为轮询）
+    const timer = setInterval(() => {
+      if (progress.value < 90) progress.value += Math.floor(Math.random() * 8) + 1;
+    }, 20000);
+
+    if (paramType.value == 'default') {
+      console.log(state.pdfAllText);
+      const text = await aiAxios(selectedModel.value, state.pdfAllText + ',' + ifpugFunctionPointEvaluationPrompt, t);
       state.tableData = text;
-      // state.tableData = data3;
-      // console.log(state.pdfAllText);
-      
-    }else{
-      // console.log(customParams.value + customizeEvaluationPrompt);
-      
-      const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + customParams.value + customizeEvaluationPrompt);
+    } else {
+      const text = await aiAxios(selectedModel.value, state.pdfAllText + '，' + customParams.value);
       state.tableData = text;
     }
 
     if (pdfDoc) {
-      await renderPage(1); // 使用await等待渲染完成
-      console.log('重新渲染完成', state.tableData);
+      await renderPage(1);
     }
+    progress.value = 100; // 生成完成
+    clearInterval(timer);
   } catch (error) {
     console.error('生成过程出错:', error);
+    progress.value = 0;
   } finally {
-    // 加载结束，设置 loading 为 false
     loading.value = false;
   }
 };
@@ -524,7 +548,8 @@ const submitPrompt = async () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* 修改：从overflow-x: auto改为hidden，防止右侧容器出现滚动条 */
+  overflow: hidden;
+  /* 修改：从overflow-x: auto改为hidden，防止右侧容器出现滚动条 */
   min-width: 0;
   /* 确保内容溢出时可以滚动 */
 }
@@ -542,7 +567,8 @@ const submitPrompt = async () => {
   flex: 1;
   border: 1px solid #ccc;
   padding: 10px;
-  overflow: hidden; /* 修改：从auto改为hidden，防止右下方区域出现滚动条 */
+  overflow: hidden;
+  /* 修改：从auto改为hidden，防止右下方区域出现滚动条 */
 }
 
 /* 新增按钮容器样式 */
@@ -625,11 +651,11 @@ const submitPrompt = async () => {
 
 .table-container {
   overflow-y: scroll;
-} 
+}
 
 .demo-progress .el-progress--line {
   width: 350px;
- margin-top: 15px;
+  margin-top: 15px;
 }
 
 .demo-progress {
@@ -659,5 +685,27 @@ const submitPrompt = async () => {
 /* 同时确保内容区域的边框样式也被正确设置 */
 :deep(.el-collapse-item__wrap) {
   border-bottom: none;
+}
+
+.pdf-container-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+  /* 确保容器有足够的高度显示加载动画 */
+  background: #fff;
+}
+
+/* 添加PDF加载蒙版样式 */
+.pdf-loading-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.7);
 }
 </style>

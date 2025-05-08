@@ -56,7 +56,7 @@
           </div>
         </div>
       </template>
-      <el-table ref="tableRef" :data="tableData" border style="width: 100%" height="100%" row-key="id"
+      <el-table ref="tableRef" :data="tableData" border style="width: 100%;" height="100%" row-key="id"
         :row-class-name="handleHighlightRow" :span-method="mergeCells" :loading="false">
         <el-table-column prop="id" label="编号" width="80" align="center" />
 
@@ -173,13 +173,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="scope">
             <el-button size="small" :type="scope.row.editing ? 'success' : 'primary'" @click="toggleEdit(scope.row)">
               {{ scope.row.editing ? '保存' : '编辑' }}
             </el-button>
             <el-button size="small" type="danger" @click="deleteRow(scope.$index)" v-if="!scope.row.editing">
               删除
+            </el-button>
+            <el-button size="small" type="warning" @click="insertRow(scope.$index)" v-if="!scope.row.editing">
+              插入
             </el-button>
           </template>
         </el-table-column>
@@ -225,14 +228,22 @@ const currentMatchIndex = ref(-1);
 // 当前匹配的字段
 const currentMatchField = ref('');
 // 使用计算属性定义 tableData
-const tableData = computed(() => {
-  return props.pdfDealTableData.map(item => ({
-    ...item,
-    ufp: item.ufp || 35,
-    reuseLevel: '高',
-    modifyType: '新增'
-  }));
-});
+const tableData = ref([]);
+
+// 监听 props.pdfDealTableData 的变化，动态更新 tableData
+watch(
+  () => props.pdfDealTableData,
+  // () => data3,
+  (newVal) => {
+    tableData.value = newVal.map(item => ({
+      ...item,
+      ufp: item.ufp || 35,
+      reuseLevel: item.reuseLevel || '高',
+      modifyType: item.modifyType || '新增'
+    }));
+  },
+  { immediate: true, deep: true }
+);
 
 const categoryOptions = [
   { label: 'EI', value: 'EI' },
@@ -244,7 +255,7 @@ const categoryOptions = [
 
 // 合并单元格方法
 const mergeCells = ({ row, column, rowIndex, columnIndex }) => {
-  if (column.property === 'subsystem' || column.property === 'level1') {
+  if (column.property === 'level1' || column.property === 'level2') {
     const previousRow = tableData.value[rowIndex - 1];
     if (previousRow && previousRow[column.property] === row[column.property]) {
       return {
@@ -296,14 +307,14 @@ const handleKeyPress = (event) => {
   if (event.key === 'Enter') {
     if (matchedRows.value.length > 0) {
       let nextIndex = (currentMatchIndex.value + 1) % matchedRows.value.length;
-      
+
       // 跳过合并的行
       while (spanArr.value[matchedRows.value[nextIndex].index] === 0) {
         nextIndex = (nextIndex + 1) % matchedRows.value.length;
       }
-      
+
       currentMatchIndex.value = nextIndex;
-      
+
       // 立即高亮匹配项
       nextTick(() => {
         const match = matchedRows.value[currentMatchIndex.value];
@@ -354,33 +365,21 @@ const highlightMatch = (text, rowIndex, field) => {
 };
 
 watch(() => props.highlightRowIds, (newVal) => {
-  if (newVal.length > 0) {
-    // 等待 DOM 更新完成
+  if (newVal.length > 0 && tableRef.value) {
     nextTick(() => {
-      const rowId = Number(newVal[0]);
-      if (!isNaN(rowId) && rowId > 0) {
-        const tableElement = tableRef.value?.$el; // 获取 DOM 元素
-        if (!tableElement) return;
-
-        // 如果找不到精确匹配的行，尝试使用索引计算
-        const rowIndex = tableData.value.findIndex(row => String(row.id) === String(rowId));
-        if (rowIndex >= 0) {
-          // 估算行高（可以根据实际情况调整）
-          const estimatedRowHeight = 36; // 默认行高
-          const headerHeight = 40; // 表头高度
-          // 计算滚动位置，考虑表头高度
-          const scrollTop = rowIndex * estimatedRowHeight + headerHeight;
-
-          // 滚动到计算出的位置
-          tableRef.value.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth'
+      const firstId = String(newVal[0]);
+      const rowIndex = tableData.value.findIndex(row => String(row.id) === firstId);
+      if (rowIndex !== -1) {
+          nextTick(() => {
+            const tableEl = tableRef.value.$el;
+            if (tableEl) {
+              const rows = tableEl.querySelectorAll('.el-table__body tr');
+              if (rows && rows[rowIndex]) {
+               console.log('需要滚动到的行索引:', rowIndex);
+                rows[rowIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
           });
-          console.log('使用索引计算滚动到位置:', scrollTop);
-        }
-        return;
-
-
       }
     });
   }
@@ -394,19 +393,39 @@ const handleHighlightRow = ({ row }) => {
 const toggleEdit = (row) => {
   row.editing = !row.editing;
   if (!row.editing) {
+    // 重新排序ID
+    reorderIds();
     ElMessage.success('保存成功');
   }
+};
+// 添加重新排序ID的函数
+const reorderIds = () => {
+  tableData.value = tableData.value.map((row, index) => ({
+    ...row,
+    id: (index + 1).toString()
+  }));
 };
 
 // 删除行
 const deleteRow = (index) => {
-  tableData.value.splice(index, 1);
-  ElMessage.success('删除成功');
-  // 重新计算匹配项
-  findMatches();
-  // 重新计算合并单元格数组
-  calculateSpanArr();
+  ElMessageBox.confirm('确定要删除这一行吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    // 创建一个新数组，避免直接修改原数组
+    const newTableData = [...tableData.value];
+    newTableData.splice(index, 1);
+    // 更新表格数据
+    tableData.value = newTableData;
+    // 重新排序ID
+    reorderIds();
+    ElMessage.success('删除成功');
+  }).catch(() => {
+    // 取消删除
+  });
 };
+
 
 // 获取类别标签类型
 const getCategoryTagType = (category) => {
@@ -440,45 +459,92 @@ const getModifyTypeTagType = (type) => {
 
 // 导出表格函数
 const exportTable = () => {
-  if (tableData.value.length === 0) {
-    ElMessage.warning('没有数据可导出');
-    return;
-  }
+  // 创建一个新的工作簿
+  const workbook = XLSX.utils.book_new()
 
-  // 定义表头
-  const header = [
-    '编号', '子系统', '一级模块', '功能点计数项名称', '功能项描述',
-    '类别', 'UFP', '重用程度', '修改类型', 'US', '备注'
-  ];
-
-  // 提取表格数据
-  const data = tableData.value.map(row => [
-    row.id, row.subsystem, row.level1, row.countItem, row.description,
-    row.category, row.ufp, row.reuseLevel, row.modifyType, row.us, row.remark
-  ]);
+  // 准备导出数据，移除编辑状态标记
+  const exportData = tableData.value.map(row => {
+    const { editing, ...rest } = row
+    return rest
+  })
 
   // 创建工作表
-  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  const worksheet = XLSX.utils.json_to_sheet(exportData)
 
-  // 设置表头第一行为灰色
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  for (let C = range.s.c; C <= range.e.c; ++C) {
-    const cell = XLSX.utils.encode_cell({ r: 0, c: C });
-    ws[cell].s = {
-      fill: { fgColor: { rgb: "D3D3D3" } },
-      font: { bold: true }
-    };
-  }
+  // 设置列宽
+  const columnWidths = [
+    { wch: 8 },  // 编号
+    { wch: 25 }, // 子系统
+    { wch: 15 }, // 一级模块
+    { wch: 15 }, // 二级模块
+    { wch: 30 }, // 功能项描述
+    { wch: 20 }, // 功能点计数项名称
+    { wch: 10 }, // 类别
+    { wch: 8 },  // UFP
+    { wch: 12 }, // 重用程度
+    { wch: 12 }, // 修改类型
+    { wch: 10 }, // US
+    { wch: 20 }  // 备注
+  ]
+  worksheet['!cols'] = columnWidths
 
-  // 创建工作簿
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  // 添加工作表到工作簿
+  XLSX.utils.book_append_sheet(workbook, worksheet, '功能点数据')
+
+  // 生成文件名（当前日期时间）
+  const now = new Date()
+  const fileName = `功能点数据_${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}.xlsx`
 
   // 导出文件
-  XLSX.writeFile(wb, 'exported_table.xlsx');
-  ElMessage.success('表格导出成功');
-};
+  XLSX.writeFile(workbook, fileName)
 
+  // 提示用户
+  ElMessage.success(`数据已成功导出为 ${fileName}`)
+}
+
+// 插入行
+const insertRow = (index) => {
+  // 获取最大ID
+  const maxId = tableData.value.reduce((max, item) => Math.max(max, parseInt(item.id) || 0), 0);
+
+  // 创建新行数据
+  const newRow = {
+    id: (maxId + 1).toString(),
+    subsystem: tableData.value[index]?.subsystem || '',
+    level1: tableData.value[index]?.level1 || '',
+    level2: '',
+    description: '',
+    countItem: '',
+    category: 'EI',
+    ufp: 35,
+    reuseLevel: '高',
+    modifyType: '新增',
+    us: '',
+    remark: '',
+    editing: true // 默认进入编辑状态
+  };
+
+  // 在指定位置插入新行
+  const newTableData = [...tableData.value];
+  newTableData.splice(index + 1, 0, newRow);
+  tableData.value = newTableData;
+
+  // 提示用户
+  ElMessage.success('已插入新行');
+
+  // 滚动到新插入的行
+  nextTick(() => {
+    if (tableRef.value) {
+      const estimatedRowHeight = 36; // 默认行高
+      const headerHeight = 40; // 表头高度
+      const scrollTop = (index + 1) * estimatedRowHeight + headerHeight;
+      tableRef.value.scrollTo({
+        top: scrollTop,
+        behavior: 'smooth'
+      });
+    }
+  });
+};
 
 </script>
 
@@ -509,8 +575,10 @@ const exportTable = () => {
 }
 
 .match-instruction {
-  color: #999; /* 淡化文字颜色 */
-  font-size: 12px; /* 减小字体大小 */
+  color: #999;
+  /* 淡化文字颜色 */
+  font-size: 12px;
+  /* 减小字体大小 */
   margin-top: 5px;
   /* background-color: #f5f5f5; */
   padding: 5px 10px;
@@ -598,6 +666,10 @@ const exportTable = () => {
 :deep(.highlight-row) {
   background-color: #f0f9eb !important;
   animation: pulse 1.5s infinite;
+}
+
+:deep(.el-table .cell) {
+  white-space: inherit;
 }
 
 @keyframes pulse {
